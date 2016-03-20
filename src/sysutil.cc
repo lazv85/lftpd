@@ -17,7 +17,7 @@
 SysUtil * SysUtil::instance = NULL;
 
 SysUtil::SysUtil(){
-    
+    waiting = true;
 }
 
 SysUtil* SysUtil::get_instance(){
@@ -79,25 +79,26 @@ int SysUtil::wait_on_socket(int sockfd, int timeout_second){
         timeout.tv_usec = 0;
         retval = select(sockfd+1,&active_fd_set,NULL,NULL,&timeout);
             
-    }while(retval <= 0);
+    }while(retval <= 0 && waiting);
     
     return retval;
 }
 
 int SysUtil::get_client_socket(int sockfd, int timeout_second){
-    int client_socket = -1;
-    
+
     int retval = 1;
     
     if(timeout_second > 0){
         retval = wait_on_socket(sockfd, timeout_second);
     }
     
+    int client_socket = -1;
+    
     if(retval > 0){
         sockaddr_in addr;
         socklen_t size_addr = sizeof(addr);
             
-        int client_socket = accept(sockfd,(struct sockaddr *) &addr,&size_addr);
+        client_socket = accept(sockfd,(struct sockaddr *) &addr,&size_addr);
             
         if(client_socket<0){
             Exception e;
@@ -140,4 +141,8 @@ int SysUtil::write_to_socket(int sockfd, std::string msg){
     const char * c_response = smsg.c_str();
     int retval = write(sockfd,c_response,smsg.size());
     return retval;
+}
+
+void SysUtil::stop_waiting(){
+    waiting = false;
 }
