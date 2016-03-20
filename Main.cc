@@ -5,8 +5,8 @@
 int main() {
     Server * srv;
     try{
-        std::cout << "FTP Server started!" << std::endl;
         srv = Server::get_instance();
+        std::cout << "FTP Server started!" << std::endl;
         srv->loop();
         delete srv;
         

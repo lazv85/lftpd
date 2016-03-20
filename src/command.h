@@ -16,6 +16,7 @@ class Command{
         std::string need_password();
         virtual bool is_data();
         virtual int transfer_data(int socket);
+        virtual std::string transfer_status();
 };
 
 #endif

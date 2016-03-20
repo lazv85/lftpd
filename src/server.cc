@@ -16,9 +16,10 @@
 #include "user.h"
 #include "pass.h"
 #include "port.h"
+#include "pasv.h"
 #include "exception.h"
 
-#define PORT 8080
+#define SERVER_PORT 8080
 #define WAIT_TIME 1
 
 bool Server::running = true;
@@ -37,12 +38,13 @@ Server::Server(){
         e.text = std::string("Server: signal error: ") + strerror(errno);
         throw e;
     }
+    p_sysutil = SysUtil::get_instance();
 }
 
 Server::~Server(){
     close(this->server_socket);
 }
-
+/*
 int Server::init_server_socket(){
     this->server_socket = socket(AF_INET,SOCK_STREAM,0);
     
@@ -74,9 +76,6 @@ int Server::init_server_socket(){
     }
 }
 
-void Server::close_server_socket(){
-    close(this->server_socket);
-}
 
 int Server::wait_on_socket(int socket, int timeout_second){
     fd_set active_fd_set, read_fd_set;
@@ -115,11 +114,6 @@ int Server::get_client_socket(int server_socket){
     
     return client_socket;
 }
-
-void Server::say_hello(int socket){
-    Server::write_to_socket(socket, std::string("220 Hey there"));
-}
-
 void Server::write_to_socket(int socket, std::string msg){
     std::string smsg = msg + "\r\n";
     const char * c_response = smsg.c_str();
@@ -153,6 +147,11 @@ std::string Server::read_from_socket(int socket){
     
     return retval;
 }
+*/
+void Server::say_hello(int socket){
+    p_sysutil->write_to_socket(socket, std::string("220 Hey there"));
+}
+
 
 Command * Server::need_auth(int socket,Authorize user_password){
     Command * cmd;
@@ -169,16 +168,16 @@ Command * Server::need_auth(int socket,Authorize user_password){
     }
     
     do{
-        retval = Server::wait_on_socket(socket,WAIT_TIME);
-        cmd_str = Server::read_from_socket(socket);
+        retval = p_sysutil->wait_on_socket(socket,WAIT_TIME);
+        cmd_str = p_sysutil->read_from_socket(socket);
         cmd = command_factory.get_command(cmd_str);
         
         if(cmd->get_command() != what){
             if(user_password == AUTH_USER){
-                Server::write_to_socket(socket,cmd->not_looged_in());
+                p_sysutil->write_to_socket(socket,cmd->not_looged_in());
             }
             if(user_password == AUTH_PASSWORD){
-                Server::write_to_socket(socket,cmd->need_password());
+                p_sysutil->write_to_socket(socket,cmd->need_password());
             }
         }
     }while(cmd->get_command() != what && Server::running);
@@ -198,11 +197,11 @@ void Server::process_connection(int socket){
     int retval;
     
     usr = dynamic_cast <User *> (Server::need_auth(socket,AUTH_USER));
-    Server::write_to_socket(socket,usr->get_response());
+    p_sysutil->write_to_socket(socket,usr->get_response());
     
     if(usr->get_status() == PASSWORD_REQUIRED){
         pwd = dynamic_cast <Pass*> (Server::need_auth(socket,AUTH_PASSWORD));
-        Server::write_to_socket(socket,pwd->get_response());
+        p_sysutil->write_to_socket(socket,pwd->get_response());
     }
 
     Command* cmd;
@@ -211,19 +210,31 @@ void Server::process_connection(int socket){
     int data_socket = -1;
     
     do{
-        retval = Server::wait_on_socket(socket,WAIT_TIME);
-        cmd_str = Server::read_from_socket(socket);
+        retval = p_sysutil->wait_on_socket(socket,WAIT_TIME);
+        cmd_str = p_sysutil->read_from_socket(socket);
         cmd = command_factory.get_command(cmd_str);
         
         if(cmd->get_command() == "PORT"){
+            if(data_socket != -1){
+                close(data_socket);
+                data_socket = -1;
+            }
             data_socket = dynamic_cast<Port*>(cmd)->get_socket();
+        } else if(cmd->get_command() == "PASV"){
+            if(data_socket != -1){
+                close(data_socket);
+                data_socket = -1;
+            }
+            p_sysutil->write_to_socket(socket,cmd->get_response());
+            data_socket = dynamic_cast<Pasv*>(cmd)->get_socket();
         }else if(data_socket != -1 && cmd->is_data()){
-            int retval = cmd->transfer_data(data_socket);
+            p_sysutil->write_to_socket(socket,cmd->transfer_status());
+            retval = cmd->transfer_data(data_socket);
             close(data_socket);
             data_socket = -1;
         }
         
-        Server::write_to_socket(socket,cmd->get_response());
+        p_sysutil->write_to_socket(socket,cmd->get_response());
         quit_connection = cmd->quit_connection();
         delete cmd;
     } while(! quit_connection && Server::running);
@@ -232,22 +243,22 @@ void Server::process_connection(int socket){
 }
 
 void Server::loop(){
-    init_server_socket();
+    this->server_socket = p_sysutil->init_server_socket(SERVER_PORT);
     int retval ;
     
     int client_socket;
     
     while(Server::running){
-        retval = Server::wait_on_socket(this->server_socket,WAIT_TIME);
+        retval = p_sysutil->wait_on_socket(this->server_socket,WAIT_TIME);
         
         if(retval>0){
-            client_socket = Server::get_client_socket(this->server_socket);
+            client_socket = p_sysutil->get_client_socket(this->server_socket, 0);
             Server::process_connection(client_socket);
             close(client_socket);
         }
     }
     
-    close_server_socket();
+    close(this->server_socket);
 }
 
 void Server::sig_handler(int t){

@@ -40,3 +40,8 @@ bool Command::is_data(){
 int Command::transfer_data(int socket){
     return 0;
 }
+
+std::string Command::transfer_status(){
+    std::string str("125 Data connection already open; transfer starting.");
+    return str;
+}

@@ -28,7 +28,8 @@ SOURCES=Main.cc \
 		src/stor.cc \
 		src/syst.cc \
 		src/user.cc \
-		src/type.cc 
+		src/type.cc \
+		src/sysutil.cc
 OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=lftpd
 

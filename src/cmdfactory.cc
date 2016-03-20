@@ -33,8 +33,8 @@ int CommandFactory::set_command_details(std::string cmd){
     if (boost::regex_search(cmd, match, rgx)){
         this->command = match[1];
         this->parameters = match[3];
-        std::cout <<"parameters=" << this->parameters << std::endl;
         std::cout <<"command=" << this->command << std::endl;
+        std::cout <<"parameters=" << this->parameters << std::endl;
         return 0;
     }
     
