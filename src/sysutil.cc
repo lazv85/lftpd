@@ -33,9 +33,8 @@ int SysUtil::init_server_socket(int portnum){
     sockfd = socket(AF_INET,SOCK_STREAM,0);
     
     if(sockfd < 0){
-        Exception e;
-        e.text = std::string("SysUtil: socket error: ") + strerror(errno);
-        throw e;
+        error_info = strerror(errno);
+        return -1;
     }
     
     int flag = 1 ;
@@ -48,15 +47,13 @@ int SysUtil::init_server_socket(int portnum){
     addr.sin_addr.s_addr = INADDR_ANY;
     
     if (bind(sockfd, (struct sockaddr *) &addr,sizeof(addr)) < 0){
-        Exception e;
-        e.text = std::string("SysUtil: bind error: ") + strerror(errno);
-        throw e;
+        error_info = strerror(errno);
+        return -1;
     }
     
     if(listen(sockfd,5) < 0){
-        Exception e;
-        e.text = std::string("Server: listen error: ") + strerror(errno);
-        throw e;
+        error_info = strerror(errno);
+        return -1;
     }
     
     return sockfd;
@@ -101,22 +98,19 @@ int SysUtil::get_client_socket(int sockfd, int timeout_second){
         client_socket = accept(sockfd,(struct sockaddr *) &addr,&size_addr);
             
         if(client_socket<0){
-            Exception e;
-            e.text = std::string("SysUtil: accept error: ") + strerror(errno);
-            throw e;
+            error_info = strerror(errno);
+            return -1;
         }
     }
     return client_socket;
 }
 
-std::string SysUtil::read_from_socket(int sockfd){
+int SysUtil::read_from_socket(int sockfd, std::string * str){
      int len;
             
     if(ioctl(sockfd,FIONREAD,&len)<0){
-        Exception e;
-        close(sockfd);
-        e.text = std::string("SysUtil: ioctl error: ") + strerror(errno);
-        throw e;
+        error_info = strerror(errno);
+        return -1;
     }
             
     char * buffer ;
@@ -124,16 +118,14 @@ std::string SysUtil::read_from_socket(int sockfd){
     bzero(buffer,len) ;
     
     if(read(sockfd,buffer,len)<0){
-        Exception e;
-        close(sockfd);
-        e.text = std::string("SysUtil: read from socket error: ") + strerror(errno);
-        throw e;
+        error_info = strerror(errno);
+        return -1;
     }
 
-    std::string retval = std::string(buffer);
+    *str = std::string(buffer);
     delete [] buffer;
     
-    return retval;
+    return 0;
 }
 
 int SysUtil::write_to_socket(int sockfd, std::string msg){
@@ -141,6 +133,10 @@ int SysUtil::write_to_socket(int sockfd, std::string msg){
     const char * c_response = smsg.c_str();
     int retval = write(sockfd,c_response,smsg.size());
     return retval;
+}
+
+std::string SysUtil::get_error_text(){
+    return error_info;
 }
 
 void SysUtil::stop_waiting(){

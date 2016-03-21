@@ -34,8 +34,7 @@ Server * Server::get_instance(){
 
 Server::Server(){
     if(signal(SIGINT, Server::sig_handler)<0){
-        Exception e;
-        e.text = std::string("Server: signal error: ") + strerror(errno);
+        Exception e(std::string("Server: signal error: ") + strerror(errno));
         throw e;
     }
     p_sysutil = SysUtil::get_instance();
@@ -46,7 +45,10 @@ Server::~Server(){
 }
 
 void Server::say_hello(int socket){
-    p_sysutil->write_to_socket(socket, std::string("220 Hey there"));
+    if(p_sysutil->write_to_socket(socket, std::string("220 Hey there"))<0){
+        Exception e("Server: say_hello: "+ p_sysutil->get_error_text());
+        throw e;
+    }
 }
 
 
@@ -66,15 +68,25 @@ Command * Server::need_auth(int socket,Authorize user_password){
     
     do{
         retval = p_sysutil->wait_on_socket(socket,WAIT_TIME);
-        cmd_str = p_sysutil->read_from_socket(socket);
+        
+        if(p_sysutil->read_from_socket(socket,&cmd_str)<0){
+            Exception e("need_auth:" + p_sysutil->get_error_text());
+            throw e;
+        }
         cmd = command_factory.get_command(cmd_str);
         
         if(cmd->get_command() != what){
             if(user_password == AUTH_USER){
-                p_sysutil->write_to_socket(socket,cmd->not_looged_in());
+                if(p_sysutil->write_to_socket(socket,cmd->not_looged_in())<0){
+                    Exception e("need_auth:" + p_sysutil->get_error_text());
+                    throw e;
+                }
             }
             if(user_password == AUTH_PASSWORD){
-                p_sysutil->write_to_socket(socket,cmd->need_password());
+                if(p_sysutil->write_to_socket(socket,cmd->need_password())<0){
+                    Exception e("need_auth:" + p_sysutil->get_error_text());
+                    throw e;
+                }
             }
         }
     }while(cmd->get_command() != what && Server::running);
@@ -82,25 +94,35 @@ Command * Server::need_auth(int socket,Authorize user_password){
     return cmd;
 }
 
-void Server::process_connection(int socket){
-    CommandFactory command_factory;
-    
-    Server:: say_hello(socket);
+void Server::authorize(int socket){
     
     User * usr ;
     Pass * pwd;
     
-    std::string cmd_str;
-    int retval;
-    
     usr = dynamic_cast <User *> (Server::need_auth(socket,AUTH_USER));
-    p_sysutil->write_to_socket(socket,usr->get_response());
+    
+    if(p_sysutil->write_to_socket(socket,usr->get_response())<0){
+        Exception e("process_connection:" + p_sysutil->get_error_text());
+        throw e;
+    }
     
     if(usr->get_status() == PASSWORD_REQUIRED){
         pwd = dynamic_cast <Pass*> (Server::need_auth(socket,AUTH_PASSWORD));
-        p_sysutil->write_to_socket(socket,pwd->get_response());
-    }
+        if(p_sysutil->write_to_socket(socket,pwd->get_response())<0){
+            Exception e("process_connection:" + p_sysutil->get_error_text());
+        }
+        delete pwd;
 
+    }
+    delete usr;
+}
+
+void Server::session(int socket){
+    CommandFactory command_factory;
+
+    std::string cmd_str;
+    int retval;
+    
     Command* cmd;
     bool quit_connection;
     
@@ -108,7 +130,10 @@ void Server::process_connection(int socket){
     
     do{
         retval = p_sysutil->wait_on_socket(socket,WAIT_TIME);
-        cmd_str = p_sysutil->read_from_socket(socket);
+        if(p_sysutil->read_from_socket(socket,&cmd_str )<0){
+            Exception e("process_connection:" + p_sysutil->get_error_text());
+            throw e;
+        }
         cmd = command_factory.get_command(cmd_str);
         
         if(cmd->get_command() == "PORT"){
@@ -122,25 +147,43 @@ void Server::process_connection(int socket){
                 close(data_socket);
                 data_socket = -1;
             }
-            p_sysutil->write_to_socket(socket,cmd->get_response());
+            if(p_sysutil->write_to_socket(socket,cmd->get_response())<0){
+                Exception e("process_connection:" + p_sysutil->get_error_text());
+                throw e;
+            }
             data_socket = dynamic_cast<Pasv*>(cmd)->get_socket();
         }else if(data_socket != -1 && cmd->is_data()){
-            p_sysutil->write_to_socket(socket,cmd->transfer_status());
+            if(p_sysutil->write_to_socket(socket,cmd->transfer_status())<0){
+                Exception e("process_connection:" + p_sysutil->get_error_text());
+                throw e;
+            }
             retval = cmd->transfer_data(data_socket);
             close(data_socket);
             data_socket = -1;
         }
         
-        p_sysutil->write_to_socket(socket,cmd->get_response());
+        if(p_sysutil->write_to_socket(socket,cmd->get_response())<0){
+            Exception e("process_connection:" + p_sysutil->get_error_text());
+        }
         quit_connection = cmd->quit_connection();
         delete cmd;
     } while(! quit_connection && Server::running);
+}
+
+void Server::process_connection(int socket){
     
-    delete usr;
+    Server:: say_hello(socket);
+    
+    Server::authorize(socket);
+    
+    Server::session(socket);
 }
 
 void Server::loop(){
     this->server_socket = p_sysutil->init_server_socket(SERVER_PORT);
+    if(this->server_socket<0){
+        Exception e("loop:" + p_sysutil->get_error_text());
+    }
     int retval ;
     
     int client_socket;

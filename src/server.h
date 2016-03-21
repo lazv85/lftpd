@@ -19,6 +19,8 @@ class Server{
         SysUtil * p_sysutil;
         void say_hello(int socket);
         Command* need_auth(int socket, Authorize user_password);
+        void authorize(int socket);
+        void session(int socket);
         void process_connection(int socket);
         
     public:
