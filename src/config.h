@@ -3,6 +3,7 @@
 
 #include <map>
 #include <iostream>
+#include <string>
 
 enum ConfigResponse{READ_OK, ALREADY_READ, FILE_NOT_AVAILABLE, CLEAR_OK, WRONG_LINE, LINE_OK};
 
@@ -15,12 +16,14 @@ class Config{
         ConfigResponse parse_line(std::string line,std::string* key, std::string * val);
         std::string  get_section(std::string line, std::string current_section);
         std::string clear_comment(std::string line);
+        std::string trim(std::string);
     public:
         static Config * get_instance();
         std::string get_value(std::string key);
         std::string get_value(std::string section, std::string key);
         ConfigResponse parse_config(std::string file_name);
         ConfigResponse clear();
+        std::string get_config_name();
 };
 
 #endif

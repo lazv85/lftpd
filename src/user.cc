@@ -1,8 +1,12 @@
 #include <string>
 #include "user.h"
+#include "config.h"
 
 User::User(std::string cmd, std::string param) : Command(cmd, param) {
-    if(param == "ftp" || param == "anonymous"){
+    Config* cfg = Config::get_instance();
+    
+    std::string user_name = cfg->get_value("users",param);
+    if(cfg->get_value("system","anonymous_access") == "yes" && user_name.empty()){
         this->status = AUTHORIZED;
     }else{
         this->status = PASSWORD_REQUIRED;

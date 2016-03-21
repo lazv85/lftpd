@@ -20,14 +20,14 @@ ConfigResponse Config::parse_config(std::string file_name){
     
     std::string line;
     
-    if(!this->config_name){
+    if(this->config_name.empty() ){
         this->config_name = file_name;
     }else{
         return ALREADY_READ;
     }
     
-   std::ifstream f(file_name);
-    
+    std::ifstream f(file_name.c_str(), std::ifstream::in);
+
     if(!f.is_open() ){
         return FILE_NOT_AVAILABLE;
     }
@@ -39,9 +39,10 @@ ConfigResponse Config::parse_config(std::string file_name){
     while ( getline (f,line) ){
       line = clear_comment(line);
       section = get_section(line, section);
+      section = trim(section);
       
       if(parse_line(line,&key, &value) == LINE_OK){
-          key_value[section + key] = value;
+          key_value[section + trim(key)] = trim(value);
       }
       
     }
@@ -52,21 +53,29 @@ ConfigResponse Config::parse_config(std::string file_name){
 }
 
 ConfigResponse Config::clear(){
-    config_data.clear();
+    key_value.clear();
+    config_name = "";
     return CLEAR_OK;
 }
 
 ConfigResponse Config::parse_line(std::string line, std::string * key, std::string * value){
-    boost::regex rgx("([^#]=[])#?");
+    boost::regex rgx("([^=]+)\\s*=\\s*(.+)");
     boost::smatch match;
+      
+    if (boost::regex_search(line, match, rgx)){
+        *key = match[1];
+        *value = match[2];
+    }else{
+        return WRONG_LINE;
+    }
     
     return LINE_OK;
 }
 
 std::string Config::get_section(std::string line, std::string current_section){
-    boost::regex rgx("\\[([^\\]+)\\]\\]");
+    boost::regex rgx("\\[(\\w+)\\]");
     boost::smatch match;
-    
+
     if (boost::regex_search(line, match, rgx)){
         std::string str = match[1];
         return str;
@@ -76,7 +85,7 @@ std::string Config::get_section(std::string line, std::string current_section){
 }
 
 std::string Config::clear_comment(std::string line){
-    boost::regex rgx("([^#]+)#?");
+    boost::regex rgx("(^[^#]+)#?");
     boost::smatch match;
     
     std::string str;
@@ -89,11 +98,27 @@ std::string Config::clear_comment(std::string line){
 }
 
 
-std::string get_value(std::string key){
+std::string Config::get_value(std::string key){
     return get_value("default", key);
 }
 
 
-std:string get_value(std::string section, std::string key){
-    return key_value[section + key];
+std::string Config::get_value(std::string section, std::string key){
+   std::map<std::string,std::string>::iterator it = key_value.find(section + key);
+   std::string str;
+   if(it != key_value.end()){
+       str = it->second;
+   }
+   return str;
+}
+
+std::string Config::get_config_name(){
+    return config_name;
+}
+
+std::string Config::trim(std::string str){
+    size_t first = str.find_first_not_of(' ');
+    size_t last = str.find_last_not_of(' ');
+    return str.substr(first, (last-first+1));
+
 }

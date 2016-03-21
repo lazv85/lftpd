@@ -11,6 +11,7 @@
 #include <cerrno>
 #include <netinet/tcp.h>
 #include <string>
+#include <cstdlib>
 
 #include "cmdfactory.h"
 #include "user.h"
@@ -19,7 +20,6 @@
 #include "pasv.h"
 #include "exception.h"
 
-#define SERVER_PORT 8080
 #define WAIT_TIME 1
 
 bool Server::running = true;
@@ -38,6 +38,9 @@ Server::Server(){
         throw e;
     }
     p_sysutil = SysUtil::get_instance();
+    p_config = Config::get_instance();
+    p_config->parse_config("config.ini");
+    check_configuration();
 }
 
 Server::~Server(){
@@ -180,9 +183,16 @@ void Server::process_connection(int socket){
 }
 
 void Server::loop(){
-    this->server_socket = p_sysutil->init_server_socket(SERVER_PORT);
+    std::string port = p_config->get_value("system","port");
+    if(port.empty()){
+        Exception e("loop: no port defined to listen on! Adjust configuration file and restart!");
+        throw e;
+    }
+    
+    this->server_socket = p_sysutil->init_server_socket(atoi(port.c_str()));
     if(this->server_socket<0){
         Exception e("loop:" + p_sysutil->get_error_text());
+        throw e;
     }
     int retval ;
     
@@ -199,6 +209,22 @@ void Server::loop(){
     }
     
     close(this->server_socket);
+}
+
+void Server::check_configuration(){
+    std::string str ;
+    
+    str = p_config->get_value("system","port");
+    if(str.empty()){
+        Exception e("configuration: system.port has to be defined");
+        throw e;
+    }
+    
+    str = p_config->get_value("system","anonymous_access");
+    if(str.empty() || (str != "yes" && str != "no")){
+        Exception e("configuration: system.anonymous_access has to be defined. values:yes, no");
+        throw e;
+    }
 }
 
 void Server::sig_handler(int t){
