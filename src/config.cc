@@ -16,20 +16,20 @@ Config * Config::get_instance(){
     return instance;
 }
 
-ConfigResponse Config::parse_config(std::string file_name){
+CFG_CODES Config::parse_config(std::string file_name){
     
     std::string line;
     
     if(this->config_name.empty() ){
         this->config_name = file_name;
     }else{
-        return ALREADY_READ;
+        return CFG_ALREADY_READ;
     }
     
     std::ifstream f(file_name.c_str(), std::ifstream::in);
 
     if(!f.is_open() ){
-        return FILE_NOT_AVAILABLE;
+        return CFG_FILE_NOT_AVAILABLE;
     }
     
     std::string section("default") ;
@@ -41,7 +41,7 @@ ConfigResponse Config::parse_config(std::string file_name){
       section = get_section(line, section);
       section = trim(section);
       
-      if(parse_line(line,&key, &value) == LINE_OK){
+      if(parse_line(line,&key, &value) == CFG_OK){
           key_value[section + trim(key)] = trim(value);
       }
       
@@ -49,16 +49,16 @@ ConfigResponse Config::parse_config(std::string file_name){
     
     f.close();
     
-    return READ_OK;
+    return CFG_OK;
 }
 
-ConfigResponse Config::clear(){
+CFG_CODES Config::clear(){
     key_value.clear();
     config_name = "";
-    return CLEAR_OK;
+    return CFG_OK;
 }
 
-ConfigResponse Config::parse_line(std::string line, std::string * key, std::string * value){
+CFG_CODES Config::parse_line(std::string line, std::string * key, std::string * value){
     boost::regex rgx("([^=]+)\\s*=\\s*(.+)");
     boost::smatch match;
       
@@ -66,10 +66,10 @@ ConfigResponse Config::parse_line(std::string line, std::string * key, std::stri
         *key = match[1];
         *value = match[2];
     }else{
-        return WRONG_LINE;
+        return CFG_WRONG_LINE;
     }
     
-    return LINE_OK;
+    return CFG_OK;
 }
 
 std::string Config::get_section(std::string line, std::string current_section){

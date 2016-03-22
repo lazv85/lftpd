@@ -17,7 +17,9 @@ class SysUtil{
         int get_client_socket(int sockfd, int timeout_second);
         int read_from_socket(int sockfd, std::string * str);
         int write_to_socket(int sockfd, std::string msg);
+        int connect_to_server(std::string host, int port);
         void stop_waiting();
+        std::string get_my_ip(int sockfd);
         std::string get_error_text();
 };
 

@@ -7,7 +7,7 @@
 #include "config.h"
 
 
-enum Authorize{AUTH_USER,AUTH_PASSWORD};
+enum SRV_CODES{};
 
 class Server{
     private:
@@ -20,7 +20,7 @@ class Server{
         SysUtil * p_sysutil;
         Config * p_config;
         void say_hello(int socket);
-        Command* need_auth(int socket, Authorize user_password);
+        Command* need_auth(int socket, std::string what);
         void authorize(int socket);
         void session(int socket);
         void process_connection(int socket);

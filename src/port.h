@@ -4,13 +4,13 @@
 #include "command.h"
 #include <iostream>
 
-enum PortStatus{OPEN, CLOSED,CANNOTBEOPEN};
+enum PORT_CODES{PORT_OPEN, PORT_CLOSED,PORT_CANNOTBEOPEN};
 
 class Port : public Command{
     private:
         std::string ip_addr;
         int port;
-        PortStatus status;
+        PORT_CODES status;
     public:
         Port(std::string cmd, std::string param);
         int get_socket();

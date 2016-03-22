@@ -39,7 +39,11 @@ Server::Server(){
     }
     p_sysutil = SysUtil::get_instance();
     p_config = Config::get_instance();
-    p_config->parse_config("config.ini");
+    
+    if(p_config->parse_config("config.ini")!= CFG_OK){
+        Exception e(std::string("configuration problem"));
+        throw e;
+    }
     check_configuration();
 }
 
@@ -55,20 +59,13 @@ void Server::say_hello(int socket){
 }
 
 
-Command * Server::need_auth(int socket,Authorize user_password){
+Command * Server::need_auth(int socket,std::string what){
     Command * cmd;
     CommandFactory command_factory;
     
     int retval;
     std::string cmd_str;
-    std::string what;
-    
-    if(user_password == AUTH_USER){
-        what = "USER";
-    }else{
-        what = "PASS";
-    }
-    
+
     do{
         retval = p_sysutil->wait_on_socket(socket,WAIT_TIME);
         
@@ -79,13 +76,13 @@ Command * Server::need_auth(int socket,Authorize user_password){
         cmd = command_factory.get_command(cmd_str);
         
         if(cmd->get_command() != what){
-            if(user_password == AUTH_USER){
+            if(what == "USER"){
                 if(p_sysutil->write_to_socket(socket,cmd->not_looged_in())<0){
                     Exception e("need_auth:" + p_sysutil->get_error_text());
                     throw e;
                 }
             }
-            if(user_password == AUTH_PASSWORD){
+            if(what == "PASS"){
                 if(p_sysutil->write_to_socket(socket,cmd->need_password())<0){
                     Exception e("need_auth:" + p_sysutil->get_error_text());
                     throw e;
@@ -102,19 +99,32 @@ void Server::authorize(int socket){
     User * usr ;
     Pass * pwd;
     
-    usr = dynamic_cast <User *> (Server::need_auth(socket,AUTH_USER));
+    usr = dynamic_cast <User *> (Server::need_auth(socket,"USER"));
     
     if(p_sysutil->write_to_socket(socket,usr->get_response())<0){
         Exception e("process_connection:" + p_sysutil->get_error_text());
         throw e;
     }
     
-    if(usr->get_status() == PASSWORD_REQUIRED){
-        pwd = dynamic_cast <Pass*> (Server::need_auth(socket,AUTH_PASSWORD));
-        if(p_sysutil->write_to_socket(socket,pwd->get_response())<0){
-            Exception e("process_connection:" + p_sysutil->get_error_text());
+    if(usr->get_status() == USR_NEED_PASSWORD){
+        std::string user_settings = p_config->get_value("users",usr->get_parameter());
+        
+        pwd = dynamic_cast <Pass*> (Server::need_auth(socket,"PASS"));
+        
+        while(pwd->authorize(user_settings) == PASS_WRONG_PASSWORD){
+            if(p_sysutil->write_to_socket(socket,pwd->get_response())<0){
+                Exception e("process_connection:" + p_sysutil->get_error_text());
+                throw e;
+            }
+            delete pwd;
+            pwd = dynamic_cast <Pass*> (Server::need_auth(socket,"PASS"));
         }
-        delete pwd;
+       
+       if(p_sysutil->write_to_socket(socket,pwd->get_response())<0){
+                Exception e("process_connection:" + p_sysutil->get_error_text());
+                throw e;
+        } 
+       delete pwd;
 
     }
     delete usr;
@@ -146,15 +156,14 @@ void Server::session(int socket){
             }
             data_socket = dynamic_cast<Port*>(cmd)->get_socket();
         } else if(cmd->get_command() == "PASV"){
-            if(data_socket != -1){
-                close(data_socket);
-                data_socket = -1;
-            }
+            int pasv_sockfd = dynamic_cast<Pasv*>(cmd)->get_socket(p_sysutil->get_my_ip(socket));
+            
             if(p_sysutil->write_to_socket(socket,cmd->get_response())<0){
                 Exception e("process_connection:" + p_sysutil->get_error_text());
                 throw e;
             }
-            data_socket = dynamic_cast<Pasv*>(cmd)->get_socket();
+            
+            data_socket = dynamic_cast<Pasv*>(cmd)->get_data_socket(pasv_sockfd);
         }else if(data_socket != -1 && cmd->is_data()){
             if(p_sysutil->write_to_socket(socket,cmd->transfer_status())<0){
                 Exception e("process_connection:" + p_sysutil->get_error_text());
@@ -165,8 +174,10 @@ void Server::session(int socket){
             data_socket = -1;
         }
         
-        if(p_sysutil->write_to_socket(socket,cmd->get_response())<0){
-            Exception e("process_connection:" + p_sysutil->get_error_text());
+        if(cmd->get_command() != "PASV"){
+            if(p_sysutil->write_to_socket(socket,cmd->get_response())<0){
+                Exception e("process_connection:" + p_sysutil->get_error_text());
+            }
         }
         quit_connection = cmd->quit_connection();
         delete cmd;

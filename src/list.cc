@@ -10,16 +10,16 @@ List::List(std::string cmd, std::string param) : Command(cmd,param) {
 std::string List::get_response(){
     std::string str;
     switch(status){
-        case TRANSMITTED:
+        case LST_OK:
             str = std::string("226 Directory or File information successfully transmitted.");
             break;
-        case NOCONNECTION:
+        case LST_NO_CONN:
             str = std::string("425 No TCP connection to transfer data.");
             break;
-        case NETWORKFAILURE:
+        case LST_NETWORK_ERR:
             str = std::string("426 TCP connection has been broken.");
             break;
-        case CANNOTREADDISK:
+        case LST_READ_ERR:
             str = std::string("451 File or Directory is not available.");
             break;
     }
@@ -40,7 +40,7 @@ std::vector<std::string> List::list_directory(std::string dir_name){
     dr = opendir(dir_name.c_str());
     
     if(dr == NULL){
-        status = CANNOTREADDISK;
+        status = LST_READ_ERR;
     }
     
     do {
@@ -49,11 +49,11 @@ std::vector<std::string> List::list_directory(std::string dir_name){
             smsg = std::string(fl->d_name) + "\r\n";
             dir_content.push_back(smsg);
         }
-    }while(fl != NULL && status != CANNOTREADDISK);
+    }while(fl != NULL && status != LST_READ_ERR);
     
     closedir(dr);
     
-    status = TRANSMITTED;    
+    status = LST_OK;    
     return dir_content;
 };
 
@@ -63,23 +63,23 @@ int List::transfer_data(int socket){
     std::vector<std::string> dir_content;
     dir_content = list_directory(".");
     
-    if(status == CANNOTREADDISK){
+    if(status == LST_READ_ERR){
         return bytes;
     }
     
     std::sort(dir_content.begin(),dir_content.end());
     
-    for(std::vector<std::string>::iterator it = dir_content.begin(); it != dir_content.end() && status != NETWORKFAILURE; ++it) {
+    for(std::vector<std::string>::iterator it = dir_content.begin(); it != dir_content.end() && status != LST_NETWORK_ERR; ++it) {
         int retval = write(socket,it->c_str(),it->size());
         if(retval < 0){
-            status = NETWORKFAILURE;
+            status = LST_NETWORK_ERR;
             bytes = 0;
         }else{
             bytes += retval;
         }
     }
     
-    status = TRANSMITTED;
+    status = LST_OK;
     return bytes;
 }
 

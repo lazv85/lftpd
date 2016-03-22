@@ -5,11 +5,11 @@
 #include <iostream>
 #include <vector>
 
-enum ListStatus{TRANSMITTED, NOCONNECTION, NETWORKFAILURE, CANNOTREADDISK};
+enum LST_CODES{LST_OK, LST_NO_CONN, LST_NETWORK_ERR, LST_READ_ERR};
 
 class List : public Command {
     private:
-        ListStatus status;
+        LST_CODES status;
         std::vector<std::string> list_directory(std::string dir_name);
     public:
         List(std::string cmd, std::string param);

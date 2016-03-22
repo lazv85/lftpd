@@ -5,15 +5,15 @@
 #include <string>
 #include "command.h"
 
-enum Auth {AUTHORIZED, PASSWORD_REQUIRED};
+enum USR_CODES {USR_OK, USR_NEED_PASSWORD};
 
 class User : public Command {
     private:
-        Auth status;
+        USR_CODES status;
     public:
         User(std::string cmd, std::string param);
         std::string get_response();
-        Auth get_status();
+        USR_CODES get_status();
 };
 
 #endif
